@@ -104,7 +104,11 @@ class BinanceStore(object):
             params.update({
                 'timeInForce': TIME_IN_FORCE_GTC
             })
-        if type != ORDER_TYPE_MARKET:
+        if type == ORDER_TYPE_STOP_LOSS:
+            params.update({
+                'stopPrice': self.format_price(symbol, price)
+            })
+        elif type != ORDER_TYPE_MARKET:
             params.update({
                 'price': self.format_price(symbol, price)
             })
@@ -114,6 +118,7 @@ class BinanceStore(object):
             side=side,
             type=type,
             quantity=self.format_quantity(symbol, size),
+            newOrderRespType='RESULT',
             **params)
 
     def format_price(self, symbol, price):
