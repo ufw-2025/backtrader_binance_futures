@@ -12,7 +12,6 @@ from requests.exceptions import ConnectTimeout, ConnectionError
 from .binance_broker import BinanceBroker
 from .binance_feed import BinanceData
 
-
 class BinanceStore(object):
     _GRANULARITIES = {
         (TimeFrame.Minutes, 1): KLINE_INTERVAL_1MINUTE,
@@ -84,7 +83,8 @@ class BinanceStore(object):
         orders = self.binance.get_open_orders(symbol=symbol)
         if len(orders) > 0:
             self.binance._request_api('delete', 'openOrders', signed=True, data={ 'symbol': symbol })
-
+        else:
+            pass
     @retry
     def cancel_order(self, symbol, order_id):
         try:
@@ -113,7 +113,7 @@ class BinanceStore(object):
                 'price': self.format_price(symbol, price)
             })
 
-        return self.binance.create_order(
+        return self.binance.futures_create_order(
             symbol=symbol,
             side=side,
             type=type,
@@ -128,6 +128,29 @@ class BinanceStore(object):
         return self._format_value(size, self._step_size[symbol])
 
     @retry
+    def get_position(self, symbol): # check if futures position is open
+        try:
+            positions = self.binance.futures_position_information(symbol=symbol)
+            for position in positions:
+                position_amt = float(position.get('positionAmt', '0'))
+                if position_amt != 0:
+                    print(position_amt)
+                    return True
+            return False
+        except Exception as e:
+            print("포지션 조회 오류:", e)
+            return False
+        
+    def get_open_position(self, symbol): # check if futures open order is exist
+        try:
+            positions = self.binance.futures_get_open_orders(symbol=symbol)
+            if positions:
+                return True
+            return False
+        except Exception as e:
+            print("미체결 주문 조회 오류:", e)
+            return False
+
     def get_asset_balance(self, asset):
         balance = self.binance.get_asset_balance(asset)
         return float(balance['free']), float(balance['locked'])
@@ -177,7 +200,7 @@ class BinanceStore(object):
 
     @retry
     def get_symbol_info(self, symbol):
-        return self.binance.get_symbol_info(symbol)
+        return self.binance.get_futures_symbol_info(symbol)
 
     def stop_socket(self):
         self.binance_socket.stop()
