@@ -6,7 +6,7 @@ from backtrader.feed import DataBase
 from backtrader.utils import date2num
 
 from backtrader import TimeFrame as tf
-
+from binance.enums import FuturesType, ContractType, HistoricalKlinesType
 
 class BinanceData(DataBase):
     params = (
@@ -37,7 +37,7 @@ class BinanceData(DataBase):
 
     def _handle_kline_socket_message(self, msg):
         """https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-streams"""
-        if msg['e'] == 'kline':
+        if msg['e'] == 'continuous_kline': # futures
             if msg['k']['x']:  # Is closed
                 kline = self._parser_to_kline(msg['k']['t'], msg['k'])
                 self._data.extend(kline.values.tolist())
@@ -87,7 +87,7 @@ class BinanceData(DataBase):
         df = pd.DataFrame([[timestamp, kline['o'], kline['h'],
                             kline['l'], kline['c'], kline['v']]])
         return self._parser_dataframe(df)
-    
+        
     def _start_live(self):
         # if live mode
         if self.LiveBars:
@@ -96,10 +96,12 @@ class BinanceData(DataBase):
 
             print(f"Live started for ticker: {self.symbol}")
 
-            self._store.binance_socket.start_kline_socket(
+            self._store.binance_socket.start_kline_futures_socket(
                 self._handle_kline_socket_message,
-                self.symbol_info['symbol'],
-                self.interval)
+                self.symbol,
+                self.interval,
+                FuturesType.USD_M,
+                ContractType.PERPETUAL)
         else:
             self._state = self._ST_OVER
         
@@ -118,7 +120,7 @@ class BinanceData(DataBase):
             self.put_notification(self.NOTSUPPORTED_TF)
             return
         
-        self.symbol_info = self._store.get_symbol_info(self.symbol)
+        self.symbol_info = self._store.get_symbol_info(self.symbol) # futures
         if self.symbol_info is None:
             self._state = self._ST_OVER
             self.put_notification(self.NOTSUBSCRIBED)
@@ -131,7 +133,8 @@ class BinanceData(DataBase):
             klines = self._store.binance.get_historical_klines(
                 self.symbol_info['symbol'],
                 self.interval,
-                self.start_date.strftime('%d %b %Y %H:%M:%S'))
+                self.start_date.strftime('%d %b %Y %H:%M:%S'),
+                klines_type=HistoricalKlinesType.FUTURES)
 
             try:
                 if self.p.drop_newest:
